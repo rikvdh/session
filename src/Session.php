@@ -32,21 +32,8 @@ class Session
     /** @var \Illuminate\Database\Connection $dbConnection database connection */
     protected $dbConnection;
 
-    /**
-     * Property: sessionStore
-     * =========================================================================
-     * An instance of ```Illuminate\Session\Store```.
-     */
+    /** @var \Illuminate\Session\Store $sessionStore session storage */
     protected $sessionStore;
-
-    /**
-     * Property: expired
-     * =========================================================================
-     * We have added in some extra functionality. We can now easily check to
-     * see if the session has expired. If it has we reset the cookie with a
-     * new id, etc.
-     */
-    private $expired = false;
 
     /**
      * Property: instance
@@ -89,23 +76,11 @@ class Session
         if (isset($_COOKIE[$this->name])) {
             // Grab the session id from the cookie
             $cookie_id = $_COOKIE[$this->name];
-
-            // Does the session exist in the db?
-            $session = (object) $this->dbConnection->table($this->table)->find($cookie_id);
-            if (isset($session->payload)) {
-                // Set the id of the session
-                $this->sessionStore->setId($cookie_id);
-            } else {
-                // Set the expired flag
-                $this->expired = true;
-
-                // NOTE: We do not need to set the id here.
-                // As it has already been set by the constructor of the Store.
-            }
+            $this->sessionStore->setId($cookie_id);
         }
 
         // Set / reset the session cookie
-        if (!isset($_COOKIE[$this->name]) || $this->expired) {
+        if (!isset($_COOKIE[$this->name])) {
             setcookie(
                 $this->name,
                 $this->sessionStore->getId(),
@@ -122,28 +97,7 @@ class Session
 
         // Save the session on shutdown
         register_shutdown_function([$this->sessionStore, 'save']);
-
         $this->globalise();
-    }
-
-    /**
-     * Method: hasExpired
-     * =========================================================================
-     * Pretty simple, if the session has previously been set and now has been
-     * expired by means of garbage collection on the server, this will return
-     * true, otherwise false.
-     *
-     * Parameters:
-     * -------------------------------------------------------------------------
-     * n/a
-     *
-     * Returns:
-     * -------------------------------------------------------------------------
-     * boolean
-     */
-    public function hasExpired()
-    {
-        return $this->expired;
     }
 
     /**
@@ -229,19 +183,12 @@ class Session
     }
 
     /**
-     * Method: __call
-     * =========================================================================
      * This will pass any unresolved method calls
      * through to the main session store object.
      *
-     * Parameters:
-     * -------------------------------------------------------------------------
-     * - $name: The name of the method to call.
-     * - $args: The argumnent array that is given to us.
-     *
-     * Returns:
-     * -------------------------------------------------------------------------
-     * mixed
+     * @param string $name The name of the method to call.
+     * @param mixed  $args The argumnent array that is given to us.
+     * @return mixed whatever the function returns
      */
     public function __call($name, $args)
     {
@@ -249,23 +196,12 @@ class Session
     }
 
     /**
-     * Method: __callStatic
-     * =========================================================================
      * This will pass any unresolved static method calls
      * through to the saved instance.
      *
-     * Parameters:
-     * -------------------------------------------------------------------------
-     * - $name: The name of the method to call.
-     * - $args: The argumnent array that is given to us.
-     *
-     * Returns:
-     * -------------------------------------------------------------------------
-     * mixed
-     *
-     * Throws:
-     * -------------------------------------------------------------------------
-     * - RuntimeException: When we have not been globalised.
+     * @param string $name The name of the method to call.
+     * @param mixed  $args The argumnent array that is given to us.
+     * @return mixed whatever the function returns
      */
     public static function __callStatic($name, $args)
     {
