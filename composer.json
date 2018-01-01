@@ -8,7 +8,7 @@
 	{
 		"psr-4":
 		{
-			"Gears\\": "src"
+			"Rikvdh\\": "src"
 		}
 	},
 	"require":

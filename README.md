@@ -1,9 +1,9 @@
 The Session Gear
 ================================================================================
-[![Build Status](https://travis-ci.org/phpgearbox/session.svg?branch=master)](https://travis-ci.org/phpgearbox/session)
-[![Latest Stable Version](https://poser.pugx.org/gears/session/v/stable.svg)](https://packagist.org/packages/gears/session)
-[![Total Downloads](https://poser.pugx.org/gears/session/downloads.svg)](https://packagist.org/packages/gears/session)
-[![License](https://poser.pugx.org/gears/session/license.svg)](https://packagist.org/packages/gears/session)
+[![Build Status](https://travis-ci.org/rikvdh/session.svg?branch=master)](https://travis-ci.org/rikvdh/session)
+[![Latest Stable Version](https://poser.pugx.org/rikvdh/session/v/stable.svg)](https://packagist.org/packages/rikvdh/session)
+[![Total Downloads](https://poser.pugx.org/rikvdh/session/downloads.svg)](https://packagist.org/packages/rikvdh/session)
+[![License](https://poser.pugx.org/rikvdh/session/license.svg)](https://packagist.org/packages/rikvdh/session)
 
 **Laravel Sessions Standalone**
 
@@ -15,45 +15,31 @@ How to Install
 --------------------------------------------------------------------------------
 Installation via composer is easy:
 
-	composer require gears/session:*
+	composer require rikvdh/session:*
 
 How to Use
 --------------------------------------------------------------------------------
-In your *legacy* - non Laravel application.
+In your non Laravel application.
 You can use the Laravel Session API like so:
 
 ```php
 // Make sure you have composer included
-require('vendor/autoload.php');
+require_once 'vendor/autoload.php';
 
-// Create a new gears session.
-$session = new Gears\Session();
-
-// Configure the session container
-$session->dbConfig = 
-[
-	'driver'    => 'mysql',
-	'host'      => 'localhost',
-	'database'  => 'db_name',
-	'username'  => 'db_user',
-	'password'  => 'abc123',
-	'charset'   => 'utf8',
-	'collation' => 'utf8_unicode_ci',
-	'prefix'    => '',
-];
-
-// Install the session api
-$session->install();
-
-// Next you will probably want to make the session object global.
-$session->globalise();
+// Create a new rikvdh session.
+$session = new Rikvdh\Session(
+		[
+			'driver'    => 'mysql',
+			'host'      => 'localhost',
+			'database'  => 'db_name',
+			'username'  => 'db_user',
+			'password'  => 'abc123',
+			'charset'   => 'utf8',
+			'collation' => 'utf8_unicode_ci',
+			'prefix'    => '',
+		]
+	);
 ```
-
-> NOTE: The dbConfig array must describe a valid db connection. This array is
-> passed directly to $capsule->addConnection For more info on this see:
-> 
->   - http://laravel.com/docs/database
->   - https://github.com/laravel/framework/tree/master/src/Illuminate/Database
 
 Now you can use code like the following:
 
@@ -111,27 +97,8 @@ drivers. This package only supports the database driver (for now).*
 **WARINING: Do not use the built in native PHP session 
 functions and / or the global $_SESSION array**
 
-Our Extra Method: hasExpired
---------------------------------------------------------------------------------
-To my current knowledge of Laravel, there is no built in way to work out if a
-Session has been set but then expired. So in a normal Laravel app if you wanted
-to display a "Your Session has expired!" message you would need to do some
-custom filters or something... see:
-
-http://stackoverflow.com/questions/14688853/check-for-session-timeout-in-laravel
-
-But with *Gears\Session* just call:
-
-```php
-if (Session::hasExpired())
-{
-	echo 'Due to inactivity, your session has expired!';
-	echo 'Please <a href="/login">click here</a> to login again.';
-}
-```
-
 So now for the why?
---------------------------------------------------------------------------------
+-------------------
 While laravel is so awesomely cool and great. If you want to pull a feature out
 and use it in another project it can become difficult. Firstly you have to have
 an innate understanding of the [IoC Container](http://laravel.com/docs/ioc).
@@ -150,6 +117,3 @@ that broke the camels back, I chucked a coders tantrum, walked to the fridge,
 grabbed another Redbull and sat back down with a new approach.
 
 The result is this project.
-
---------------------------------------------------------------------------------
-Developed by Brad Jones - brad@bjc.id.au
