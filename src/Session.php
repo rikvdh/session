@@ -1,5 +1,5 @@
 <?php
-namespace Gears;
+namespace Rikvdh;
 
 use Illuminate\Database\Capsule\Manager as LaravelDb;
 use Illuminate\Session\DatabaseSessionHandler;
