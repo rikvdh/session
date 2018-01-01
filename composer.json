@@ -1,7 +1,7 @@
 {
-	"name": "gears/session",
+	"name": "rikvdh/session",
 	"description": "Laravel Sessions Standalone",
-	"homepage": "https://github.com/phpgearbox/session",
+	"homepage": "https://github.com/rikvdh/session",
 	"keywords": ["laravel", "sessions", "standalone"],
 	"license": "MIT",
 	"autoload":
@@ -13,9 +13,8 @@
 	},
 	"require":
 	{
-		"gears/di": "*",
-		"illuminate/session": "4.*",
-		"illuminate/database": "4.*"
+		"illuminate/session": "5.*",
+		"illuminate/database": "5.*"
 	},
 	"require-dev":
 	{
