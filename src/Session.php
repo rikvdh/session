@@ -9,7 +9,7 @@ use RuntimeException;
 class Session
 {
     /** @var string $name Used to identify the session, the name of the actual session cookie. */
-    protected $name = 'gears-session';
+    protected $name = 'my-session';
 
     /** @var int $timeout The session timeout in minutes */
     protected $timeout = 60 * 24;
@@ -173,7 +173,7 @@ class Session
         }
 
         // Create the alias
-        class_alias('\Gears\Session', $alias);
+        class_alias('\Rikvdh\Session', $alias);
 
         // Save our instance
         self::$instance = $this;

@@ -15,7 +15,7 @@
 require('../../vendor/autoload.php');
 
 // Create a new session object
-$session = new Gears\Session();
+$session = new Rikvdh\Session();
 
 // Configure the session object
 $session->dbConfig =

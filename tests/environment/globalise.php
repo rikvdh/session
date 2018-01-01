@@ -17,7 +17,7 @@ namespace FooBar
 	{
 		// Create a new session object.
 		// Note how we are inside another namespace.
-		$session = new \Gears\Session();
+		$session = new \Rikvdh\Session();
 
 		// Configure the session object
 		$session->dbConfig =
