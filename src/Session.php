@@ -1,412 +1,274 @@
-<?php namespace Gears;
-////////////////////////////////////////////////////////////////////////////////
-// __________ __             ________                   __________              
-// \______   \  |__ ______  /  _____/  ____ _____ ______\______   \ _______  ___
-//  |     ___/  |  \\____ \/   \  ____/ __ \\__  \\_  __ \    |  _//  _ \  \/  /
-//  |    |   |   Y  \  |_> >    \_\  \  ___/ / __ \|  | \/    |   (  <_> >    < 
-//  |____|   |___|  /   __/ \______  /\___  >____  /__|  |______  /\____/__/\_ \
-//                \/|__|           \/     \/     \/             \/            \/
-// -----------------------------------------------------------------------------
-//          Designed and Developed by Brad Jones <brad @="bjc.id.au" />         
-// -----------------------------------------------------------------------------
-////////////////////////////////////////////////////////////////////////////////
+<?php
+namespace Gears;
 
-use RuntimeException;
-use Gears\Di\Container;
 use Illuminate\Database\Capsule\Manager as LaravelDb;
-use Illuminate\Session\Store;
 use Illuminate\Session\DatabaseSessionHandler;
+use Illuminate\Session\Store;
+use RuntimeException;
 
-class Session extends Container
+class Session
 {
-	/**
-	 * Property: name
-	 * =========================================================================
-	 * Used to identify the session, the name of the actual session cookie.
-	 */
-	protected $injectName;
+    /** @var string $name Used to identify the session, the name of the actual session cookie. */
+    protected $name = 'gears-session';
 
-	/**
-	 * Property: lifetime
-	 * =========================================================================
-	 * The time in seconds before garbage collection is run on the server.
-	 */
-	protected $injectLifetime;
+    /** @var int $lifetime The time in seconds before garbage collection is run on the server. */
+    protected $lifetime = 120;
 
-	/**
-	 * Property: path
-	 * =========================================================================
-	 * This is passed directly to setcookie.
-	 * See: http://php.net/manual/en/function.setcookie.php
-	 */
-	protected $injectPath;
+    /** @var int $timeout The session timeout in minutes */
+    protected $timeout = 60 * 24;
 
-	/**
-	 * Property: domain
-	 * =========================================================================
-	 * This is passed directly to setcookie.
-	 * See: http://php.net/manual/en/function.setcookie.php
-	 */
-	protected $injectDomain;
+    /** @var string $path This is passed directly to setcookie. */
+    protected $path = '/';
 
-	/**
-	 * Property: secure
-	 * =========================================================================
-	 * This is passed directly to setcookie.
-	 * See: http://php.net/manual/en/function.setcookie.php
-	 */
-	protected $injectSecure;
+    /** @var string $domain This is passed directly to setcookie. */
+    protected $domain;
 
-	/**
-	 * Property: dbConfig
-	 * =========================================================================
-	 * This is an array of configuration data that can be used to create the
-	 * dbConnection. This **must** be injected, if you do not inject your very
-	 * own dbConnection.
-	 */
-	protected $injectDbConfig;
+    /** @var bool $secure This is passed directly to setcookie. */
+    protected $secure = false;
 
-	/**
-	 * Property: table
-	 * =========================================================================
-	 * The name of the database table to use for session storage.
-	 */
-	protected $injectTable;
+    /** @var string $table The name of the database table to use for session storage. */
+    protected $table = 'sessions';
 
-	/**
-	 * Property: dbConnection
-	 * =========================================================================
-	 * An instance of ```\Illuminate\Database\Connection```.
-	 */
-	protected $injectDbConnection;
+    /** @var \Illuminate\Database\Connection $dbConnection database connection */
+    protected $dbConnection;
 
-	/**
-	 * Property: databaseSessionHandler
-	 * =========================================================================
-	 * An instance of ```Illuminate\Session\DatabaseSessionHandler```.
-	 */
-	protected $injectDatabaseSessionHandler;
+    /**
+     * Property: sessionStore
+     * =========================================================================
+     * An instance of ```Illuminate\Session\Store```.
+     */
+    protected $sessionStore;
 
-	/**
-	 * Property: sessionStore
-	 * =========================================================================
-	 * An instance of ```Illuminate\Session\Store```.
-	 */
-	protected $injectSessionStore;
+    /**
+     * Property: expired
+     * =========================================================================
+     * We have added in some extra functionality. We can now easily check to
+     * see if the session has expired. If it has we reset the cookie with a
+     * new id, etc.
+     */
+    private $expired = false;
 
-	/**
-	 * Property: expired
-	 * =========================================================================
-	 * We have added in some extra functionality. We can now easily check to
-	 * see if the session has expired. If it has we reset the cookie with a
-	 * new id, etc.
-	 */
-	private $expired = false;
+    /**
+     * Property: instance
+     * =========================================================================
+     * This is used as part of the globalise functionality.
+     */
+    private static $instance;
 
-	/**
-	 * Property: instance
-	 * =========================================================================
-	 * This is used as part of the globalise functionality.
-	 */
-	private static $instance;
+    /**
+     * This is where we set all our defaults. If you need to customise this
+     * container this is a good place to look to see what can be configured
+     * and how to configure it.
+     */
+    public function __construct($dbConfig, $options = null)
+    {
+        foreach ($options as $option => $v) {
+            $this->{$option} = $v;
+        }
+        $capsule = new LaravelDb;
+        $capsule->addConnection($dbConfig);
+        $this->dbConnection = $capsule->getConnection('default');
 
-	/**
-	 * Method: setDefaults
-	 * =========================================================================
-	 * This is where we set all our defaults. If you need to customise this
-	 * container this is a good place to look to see what can be configured
-	 * and how to configure it.
-	 * 
-	 * Parameters:
-	 * -------------------------------------------------------------------------
-	 * n/a
-	 * 
-	 * Returns:
-	 * -------------------------------------------------------------------------
-	 * void
-	 */
-	protected function setDefaults()
-	{
-		$this->name = 'gears-session';
+        $sessHandler = new DatabaseSessionHandler($this->dbConnection, $this->table, $this->timeout);
+        $this->sessionStore = new Store($this->name, $sessHandler);
 
-		$this->table = 'sessions';
+        // Make sure we have a sessions table
+        $schema = $this->dbConnection->getSchemaBuilder();
+        if (!$schema->hasTable($this->table)) {
+            $schema->create($this->table, function ($t) {
+                $t->string('id')->unique();
+                $t->text('payload');
+                $t->integer('last_activity');
+            });
+        }
 
-		$this->lifetime = 120;
+        // Run the garbage collection
+        $this->sessionStore->getHandler()->gc($this->lifetime);
 
-		$this->path = '/';
+        // Check for our session cookie
+        if (isset($_COOKIE[$this->name])) {
+            // Grab the session id from the cookie
+            $cookie_id = $_COOKIE[$this->name];
 
-		$this->dbConnection = function()
-		{
-			if (!is_array($this->dbConfig))
-			{
-				throw new RuntimeException
-				(
-					'Invalid Database Connection Provided'
-				);
-			}
+            // Does the session exist in the db?
+            $session = (object) $this->dbConnection->table($this->table)->find($cookie_id);
+            if (isset($session->payload)) {
+                // Set the id of the session
+                $this->sessionStore->setId($cookie_id);
+            } else {
+                // Set the expired flag
+                $this->expired = true;
 
-			$capsule = new LaravelDb;
-			$capsule->addConnection($this->dbConfig);
-			return $capsule->getConnection('default');
-		};
+                // NOTE: We do not need to set the id here.
+                // As it has already been set by the constructor of the Store.
+            }
+        }
 
-		$this->databaseSessionHandler = function()
-		{
-			return new DatabaseSessionHandler
-			(
-				$this->dbConnection,
-				$this->table
-			);
-		};
+        // Set / reset the session cookie
+        if (!isset($_COOKIE[$this->name]) || $this->expired) {
+            setcookie(
+                $this->name,
+                $this->sessionStore->getId(),
+                0,
+                $this->path,
+                $this->domain,
+                $this->secure,
+                true
+            );
+        }
 
-		$this->sessionStore = function()
-		{
-			return new Store
-			(
-				$this->name,
-				$this->databaseSessionHandler
-			);
-		};
-	}
+        // Start the session
+        $this->sessionStore->start();
 
-	/**
-	 * Method: install
-	 * =========================================================================
-	 * Once the container has been configured. Please call this method to
-	 * install the session api into your application.
-	 *
-	 * Parameters:
-	 * -------------------------------------------------------------------------
-	 * - $global: If set to true we will also run globalise after setup.
-	 *
-	 * Returns:
-	 * -------------------------------------------------------------------------
-	 * void
-	 */
-	public function install($global = false)
-	{
-		// Make sure we have a sessions table
-		$schema = $this->dbConnection->getSchemaBuilder();
-		if (!$schema->hasTable($this->table))
-		{
-			$schema->create($this->table, function($t)
-			{
-				$t->string('id')->unique();
-				$t->text('payload');
-				$t->integer('last_activity');
-			});
-		}
+        // Save the session on shutdown
+        register_shutdown_function([$this->sessionStore, 'save']);
 
-		// Run the garbage collection
-		$this->sessionStore->getHandler()->gc($this->lifetime);
+        $this->globalise();
+    }
 
-		// Check for our session cookie
-		if (isset($_COOKIE[$this->name]))
-		{
-			// Grab the session id from the cookie
-			$cookie_id = $_COOKIE[$this->name];
+    /**
+     * Method: hasExpired
+     * =========================================================================
+     * Pretty simple, if the session has previously been set and now has been
+     * expired by means of garbage collection on the server, this will return
+     * true, otherwise false.
+     *
+     * Parameters:
+     * -------------------------------------------------------------------------
+     * n/a
+     *
+     * Returns:
+     * -------------------------------------------------------------------------
+     * boolean
+     */
+    public function hasExpired()
+    {
+        return $this->expired;
+    }
 
-			// Does the session exist in the db?
-			$session = (object) $this->dbConnection
-				->table($this->table)
-				->find($cookie_id)
-			;
+    /**
+     * Method: regenerate
+     * =========================================================================
+     * When the session id is regenerated we need to reset the cookie.
+     *
+     * Parameters:
+     * -------------------------------------------------------------------------
+     * - $destroy: If set to true the previous session will be deleted.
+     *
+     * Returns:
+     * -------------------------------------------------------------------------
+     * boolean
+     */
+    public function regenerate($destroy = false)
+    {
+        if ($this->sessionStore->regenerate($destroy)) {
+            setcookie(
+                $this->sessionStore->getName(),
+                $this->sessionStore->getId(),
+                0,
+                $this->path,
+                $this->domain,
+                $this->secure,
+                true
+            );
+            return true;
+        } else {
+            return false;
+        }
+    }
 
-			if (isset($session->payload))
-			{
-				// Set the id of the session
-				$this->sessionStore->setId($cookie_id);
-			}
-			else
-			{
-				// Set the expired flag
-				$this->expired = true;
+    /**
+     * Method: globalise
+     * =========================================================================
+     * Now in a normal laravel application you can call the session api like so:
+     *
+     * ```php
+     * Session::push('key', 'value');
+     * ```
+     *
+     * This is because laravel has the IoC container with Service Providers and
+     * Facades and other intresting things that work some magic to set this up
+     * for you. Have a look in you main app.php config file and checkout the
+     * aliases section.
+     *
+     * If you want to be able to do the same in your
+     * application you need to call this method.
+     *
+     * Parameters:
+     * -------------------------------------------------------------------------
+     * - $alias: This is the name of the alias to create. Defaults to Session.
+     *
+     * Returns:
+     * -------------------------------------------------------------------------
+     * void
+     *
+     * Throws:
+     * -------------------------------------------------------------------------
+     * - RuntimeException: When a class of the same name as the alias
+     *   already exists.
+     */
+    public function globalise($alias = 'Session')
+    {
+        // Create the alias name
+        if (substr($alias, 0, 1) != '\\') {
+            // This ensures the alias is created in the global namespace.
+            $alias = '\\' . $alias;
+        }
 
-				// NOTE: We do not need to set the id here.
-				// As it has already been set by the constructor of the Store.
-			}				
-		}
+        // Check if a class already exists
+        if (class_exists($alias)) {
+            // Bail out, a class already exists with the same name.
+            throw new RuntimeException('Class already exists!');
+        }
 
-		// Set / reset the session cookie
-		if (!isset($_COOKIE[$this->name]) || $this->expired)
-		{
-			setcookie
-			(
-				$this->name,
-				$this->sessionStore->getId(),
-				0,
-				$this->path,
-				$this->domain,
-				$this->secure,
-				true
-			);
-		}
+        // Create the alias
+        class_alias('\Gears\Session', $alias);
 
-		// Start the session
-		$this->sessionStore->start();
+        // Save our instance
+        self::$instance = $this;
+    }
 
-		// Save the session on shutdown
-		register_shutdown_function([$this->sessionStore, 'save']);
+    /**
+     * Method: __call
+     * =========================================================================
+     * This will pass any unresolved method calls
+     * through to the main session store object.
+     *
+     * Parameters:
+     * -------------------------------------------------------------------------
+     * - $name: The name of the method to call.
+     * - $args: The argumnent array that is given to us.
+     *
+     * Returns:
+     * -------------------------------------------------------------------------
+     * mixed
+     */
+    public function __call($name, $args)
+    {
+        return call_user_func_array([$this->sessionStore, $name], $args);
+    }
 
-		// Run globalise
-		if ($global) $this->globalise();
-	}
-
-	/**
-	 * Method: hasExpired
-	 * =========================================================================
-	 * Pretty simple, if the session has previously been set and now has been
-	 * expired by means of garbage collection on the server, this will return
-	 * true, otherwise false.
-	 *
-	 * Parameters:
-	 * -------------------------------------------------------------------------
-	 * n/a
-	 *
-	 * Returns:
-	 * -------------------------------------------------------------------------
-	 * boolean
-	 */
-	public function hasExpired()
-	{
-		return $this->expired;
-	}
-
-	/**
-	 * Method: regenerate
-	 * =========================================================================
-	 * When the session id is regenerated we need to reset the cookie.
-	 *
-	 * Parameters:
-	 * -------------------------------------------------------------------------
-	 * - $destroy: If set to true the previous session will be deleted.
-	 *
-	 * Returns:
-	 * -------------------------------------------------------------------------
-	 * boolean
-	 */
-	public function regenerate($destroy = false)
-	{
-		if ($this->sessionStore->regenerate($destroy))
-		{
-			setcookie
-			(
-				$this->sessionStore->getName(),
-				$this->sessionStore->getId(),
-				0,
-				$this->path,
-				$this->domain,
-				$this->secure,
-				true
-			);
-
-			return  true;
-		}
-		else
-		{
-			return false;
-		}
-	}
-
-	/**
-	 * Method: globalise
-	 * =========================================================================
-	 * Now in a normal laravel application you can call the session api like so:
-	 * 
-	 * ```php
-	 * Session::push('key', 'value');
-	 * ```
-	 * 
-	 * This is because laravel has the IoC container with Service Providers and
-	 * Facades and other intresting things that work some magic to set this up
-	 * for you. Have a look in you main app.php config file and checkout the
-	 * aliases section.
-	 * 
-	 * If you want to be able to do the same in your
-	 * application you need to call this method.
-	 *
-	 * Parameters:
-	 * -------------------------------------------------------------------------
-	 * - $alias: This is the name of the alias to create. Defaults to Session.
-	 *
-	 * Returns:
-	 * -------------------------------------------------------------------------
-	 * void
-	 * 
-	 * Throws:
-	 * -------------------------------------------------------------------------
-	 * - RuntimeException: When a class of the same name as the alias
-	 *   already exists.
-	 */
-	public function globalise($alias = 'Session')
-	{
-		// Create the alias name
-		if (substr($alias, 0, 1) != '\\')
-		{
-			// This ensures the alias is created in the global namespace.
-			$alias = '\\'.$alias;
-		}
-
-		// Check if a class already exists
-		if (class_exists($alias))
-		{
-			// Bail out, a class already exists with the same name.
-			throw new RuntimeException('Class already exists!');
-		}
-
-		// Create the alias
-		class_alias('\Gears\Session', $alias);
-
-		// Save our instance
-		self::$instance = $this;
-	}
-
-	/**
-	 * Method: __call
-	 * =========================================================================
-	 * This will pass any unresolved method calls
-	 * through to the main session store object.
-	 *
-	 * Parameters:
-	 * -------------------------------------------------------------------------
-	 * - $name: The name of the method to call.
-	 * - $args: The argumnent array that is given to us.
-	 *
-	 * Returns:
-	 * -------------------------------------------------------------------------
-	 * mixed
-	 */
-	public function __call($name, $args)
-	{
-		return call_user_func_array([$this->sessionStore, $name], $args);
-	}
-
-	/**
-	 * Method: __callStatic
-	 * =========================================================================
-	 * This will pass any unresolved static method calls
-	 * through to the saved instance.
-	 *
-	 * Parameters:
-	 * -------------------------------------------------------------------------
-	 * - $name: The name of the method to call.
-	 * - $args: The argumnent array that is given to us.
-	 *
-	 * Returns:
-	 * -------------------------------------------------------------------------
-	 * mixed
-	 * 
-	 * Throws:
-	 * -------------------------------------------------------------------------
-	 * - RuntimeException: When we have not been globalised.
-	 */
-	public static function __callStatic($name, $args)
-	{
-		if (empty(self::$instance))
-		{
-			throw new RuntimeException('You need to run globalise first!');
-		}
-
-		return call_user_func_array([self::$instance, $name], $args);
-	}
+    /**
+     * Method: __callStatic
+     * =========================================================================
+     * This will pass any unresolved static method calls
+     * through to the saved instance.
+     *
+     * Parameters:
+     * -------------------------------------------------------------------------
+     * - $name: The name of the method to call.
+     * - $args: The argumnent array that is given to us.
+     *
+     * Returns:
+     * -------------------------------------------------------------------------
+     * mixed
+     *
+     * Throws:
+     * -------------------------------------------------------------------------
+     * - RuntimeException: When we have not been globalised.
+     */
+    public static function __callStatic($name, $args)
+    {
+        return call_user_func_array([self::$instance, $name], $args);
+    }
 }
