@@ -14,8 +14,8 @@
 	"require":
 	{
 		"gears/di": "*",
-		"illuminate/session": "4.*",
-		"illuminate/database": "4.*"
+		"illuminate/session": "5.*",
+		"illuminate/database": "5.*"
 	},
 	"require-dev":
 	{
