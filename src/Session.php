@@ -11,9 +11,6 @@ class Session
     /** @var string $name Used to identify the session, the name of the actual session cookie. */
     protected $name = 'gears-session';
 
-    /** @var int $lifetime The time in seconds before garbage collection is run on the server. */
-    protected $lifetime = 120;
-
     /** @var int $timeout The session timeout in minutes */
     protected $timeout = 60 * 24;
 
@@ -70,7 +67,7 @@ class Session
         }
 
         // Run the garbage collection
-        $this->sessionStore->getHandler()->gc($this->lifetime);
+        $this->sessionStore->getHandler()->gc($this->timeout * 60);
 
         // Check for our session cookie
         if (isset($_COOKIE[$this->name])) {
